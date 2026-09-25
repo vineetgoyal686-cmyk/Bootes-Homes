@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds an adaptive HLS package (master playlist + per-rendition .m3u8/.ts) from the
+ * Builds an adaptive HLS package (master playlist + per-rendition .m3u8/.m4s) from the
  * full construction timelapse, plus a short muted background-loop MP4.
  *
  * Source is 1280x720 - "keep original quality" plus lower renditions "only if below
@@ -100,8 +100,11 @@ args.push(
   '-hls_time', '4',
   '-hls_playlist_type', 'vod',
   '-hls_flags', 'independent_segments',
-  '-hls_segment_type', 'mpegts',
-  '-hls_segment_filename', path.join(HLS_DIR, '%v', 'seg_%03d.ts'),
+  // fMP4 (.m4s) rather than MPEG-TS (.ts): static hosts treat ".ts" as
+  // TypeScript (Cloudflare's uploader rejects it, others serve the wrong MIME).
+  '-hls_segment_type', 'fmp4',
+  '-hls_fmp4_init_filename', 'init.mp4',
+  '-hls_segment_filename', path.join(HLS_DIR, '%v', 'seg_%03d.m4s'),
   '-master_pl_name', 'master.m3u8',
   '-var_stream_map', varStreamMap,
   path.join(HLS_DIR, '%v', 'prog.m3u8')
