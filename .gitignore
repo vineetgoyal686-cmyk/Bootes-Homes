@@ -45,3 +45,4 @@ next-env.d.ts
 /public/media/frames/
 /public/media/hls/
 /public/media/video/
+/public/media/timelapse/

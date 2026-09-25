@@ -37,6 +37,25 @@ export interface JourneyStage {
   height: number;
 }
 
+/** A point in the timelapse video and the date the site camera shows there. */
+export interface TimelapseMark {
+  /** Seconds into the video. */
+  t: number;
+  /** ISO date burned into the camera frame at that point. */
+  date: string;
+}
+
+/** One month of the timelapse, shown as a jump-in card on the page. */
+export interface TimelapseChapter {
+  month: string;
+  title: string;
+  caption: string;
+  /** Seconds into the video where this chapter starts playing. */
+  t: number;
+  /** Still under /media/timelapse (without extension). */
+  image: string;
+}
+
 export interface ProjectStats {
   /** null hides the stat until a figure is confirmed from a document. */
   plotSize: string | null;
@@ -76,6 +95,12 @@ export interface Project {
   whatsappNumber: string | null;
   mapEmbedQuery: string | null;
   features: ProjectFeature[];
+  /** Video time -> real date, read off the camera's own timestamp. Used by the
+   * timelapse player for month markers and the live date readout. The camera
+   * doesn't capture at an even rate, so dates are interpolated between these. */
+  timelapseDates: TimelapseMark[];
+  /** Month-by-month jump points into the timelapse. */
+  timelapseChapters: TimelapseChapter[];
   /** Photo-per-stage story, oldest first. Empty hides the photos. */
   journey: JourneyStage[];
   /** Number of gallery slots to render as placeholders until real photos land. */
@@ -192,6 +217,34 @@ export const projects: Project[] = [
         benefits: ["One app for lights, security and climate", "Check on the house remotely"],
         spec: "Platform: TBD",
       },
+    ],
+    // Read from the timestamp in the video frames every 8s.
+    timelapseDates: [
+      { t: 0, date: "2025-01-02" },
+      { t: 8, date: "2025-01-30" },
+      { t: 16, date: "2025-02-12" },
+      { t: 24, date: "2025-02-19" },
+      { t: 32, date: "2025-02-26" },
+      { t: 40, date: "2025-03-12" },
+      { t: 48, date: "2025-03-19" },
+      { t: 56, date: "2025-03-25" },
+      { t: 64, date: "2025-04-01" },
+      { t: 72, date: "2025-04-08" },
+      { t: 80, date: "2025-04-15" },
+      { t: 88, date: "2025-04-22" },
+      { t: 96, date: "2025-05-01" },
+      { t: 104, date: "2025-05-13" },
+      { t: 112, date: "2025-05-24" },
+      { t: 118, date: "2025-05-29" },
+    ],
+    // Stills are frames from the timelapse itself (bottom timestamp strip
+    // cropped off); `t` is where each month begins in the video.
+    timelapseChapters: [
+      { month: "Jan", title: "Demolition", caption: "The old house comes down and the plot is cleared.", t: 0, image: "jan" },
+      { month: "Feb", title: "Excavation & footings", caption: "The site is dug out and the foundation cast.", t: 9.2, image: "feb" },
+      { month: "Mar", title: "Basement & first slab", caption: "Basement walls rise and the ground slab is reinforced.", t: 33.7, image: "mar" },
+      { month: "Apr", title: "Ground floor", caption: "Columns go up and the next slab is shuttered and poured.", t: 64, image: "apr" },
+      { month: "May", title: "Upper floors", caption: "Work moves up to the top slab and roof.", t: 96, image: "may" },
     ],
     // Photos cropped to remove camera timestamps/watermarks, metadata stripped
     // (see public/media/journey). No house numbers or addresses in frame.

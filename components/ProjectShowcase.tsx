@@ -14,7 +14,7 @@ export function ProjectShowcase({ project }: { project: Project }) {
   return (
     <main>
       <Hero project={project} />
-      <TimelapseSection />
+      <TimelapseSection project={project} />
       {/* The photo story covers the same stages with real photos; the card
           timeline stays as the fallback for projects without them. */}
       {project.journey.length > 0 ? (

@@ -1,65 +1,134 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
-import { TimelapseModal } from "@/components/modals/TimelapseModal";
+import { TimelapsePlayer, type TimelapsePlayerHandle } from "@/components/timelapse/TimelapsePlayer";
 import { Reveal } from "@/components/ui/Reveal";
 import { media } from "@/lib/media";
+import type { Project } from "@/data/projects";
+
+const EYEBROW =
+  "inline-block rounded-full border border-border bg-background-elevated/90 px-4 py-1.5 font-sans text-xs uppercase tracking-[0.3em] text-accent-soft shadow-sm";
+
+const DAY_MS = 86_400_000;
 
 /**
- * The construction timelapse as a click-to-watch card: nothing plays on
- * scroll. Clicking opens TimelapseModal, where the video plays normally and
- * the viewer can change its speed.
+ * The construction timelapse, watched right on the page: story and a
+ * month-by-month chapter list on the left, the player on the right. Clicking
+ * a month plays from there; the month currently on screen is highlighted.
  */
-export function TimelapseSection() {
-  const [open, setOpen] = useState(false);
+export function TimelapseSection({ project }: { project: Project }) {
+  const chapters = project.timelapseChapters;
+  const marks = project.timelapseDates;
+  const playerRef = useRef<TimelapsePlayerHandle>(null);
+  const [active, setActive] = useState<number | null>(null);
+
+  const days =
+    marks.length > 1
+      ? Math.round(
+          (new Date(`${marks[marks.length - 1].date}T00:00:00`).getTime() -
+            new Date(`${marks[0].date}T00:00:00`).getTime()) /
+            DAY_MS
+        )
+      : null;
+
+  const onProgress = (t: number) => {
+    let idx = 0;
+    for (let i = 0; i < chapters.length; i++) if (t >= chapters[i].t) idx = i;
+    setActive((cur) => (cur === idx ? cur : idx));
+  };
 
   return (
-    <section className="bg-foreground px-6 py-24">
-      <Reveal className="mx-auto mb-10 max-w-3xl text-center">
-        <p className="inline-block rounded-full border border-white/20 bg-white/10 px-4 py-1.5 font-sans text-xs uppercase tracking-[0.3em] text-white">
-          The timelapse
-        </p>
-        <h2 className="mt-4 font-display text-3xl text-white sm:text-5xl">Every month, on camera</h2>
-        <p className="mx-auto mt-3 max-w-xl font-sans text-white/70">
-          The whole build, straight from the site camera, in about two minutes.
-        </p>
-      </Reveal>
+    <section className="bg-background px-6 py-24">
+      {/* Mobile order: heading, player, chapters. Desktop: heading + chapters
+          stacked on the left, player spanning both rows on the right. */}
+      <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1fr_1.45fr] lg:grid-rows-[auto_1fr] lg:gap-x-14 lg:gap-y-8">
+        <Reveal className="lg:col-start-1 lg:row-start-1">
+          <p className={EYEBROW}>The timelapse</p>
+          <h2 className="mt-4 font-display text-3xl text-foreground sm:text-5xl">
+            {days ? `${days} days,` : "The whole build,"}
+            <br />
+            <span className="text-accent">in two minutes.</span>
+          </h2>
+          <p className="mt-4 max-w-md font-sans text-foreground-muted">
+            Every working day on the site camera, from the old house coming down to the top slab.
+            Pick a month to jump straight in.
+          </p>
+        </Reveal>
 
-      <Reveal className="mx-auto max-w-5xl">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Watch the construction timelapse"
-          className="group relative block aspect-video w-full overflow-hidden rounded-3xl bg-black shadow-2xl"
-        >
-          <Image
-            src={media.posters.end()}
-            alt=""
-            fill
-            sizes="(min-width: 1024px) 64rem, 100vw"
-            // Scaled from the top so the camera's timestamp/watermark strip along
-            // the bottom edge falls outside the card.
-            className="origin-top scale-[1.12] object-cover opacity-80 transition duration-700 group-hover:scale-[1.15] group-hover:opacity-90"
+        {/* Player */}
+        <Reveal className="lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center">
+          <TimelapsePlayer
+            handleRef={playerRef}
+            marks={marks}
+            poster={media.timelapse("mar.webp")}
+            onProgress={onProgress}
           />
-          <span className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/20" />
+        </Reveal>
 
-          <span className="absolute left-1/2 top-1/2 flex h-20 w-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white/95 shadow-xl transition-transform duration-300 group-hover:scale-110 sm:h-24 sm:w-24">
-            <svg viewBox="0 0 24 24" className="ml-1 h-8 w-8 text-foreground sm:h-10 sm:w-10" fill="currentColor" aria-hidden="true">
-              <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
-            </svg>
-          </span>
-
-          <span className="absolute bottom-5 left-5 text-left sm:bottom-7 sm:left-8">
-            <span className="block font-display text-xl text-white sm:text-2xl">Watch the full timelapse</span>
-            <span className="mt-1 block font-sans text-xs uppercase tracking-[0.2em] text-white/70">
-              ~2 min · change speed while you watch
-            </span>
-          </span>
-        </button>
-      </Reveal>
-
-      <TimelapseModal open={open} onClose={() => setOpen(false)} />
+        {/* Month chapters */}
+        <Reveal className="lg:col-start-1 lg:row-start-2">
+          <ol className="space-y-1.5">
+            {chapters.map((c, i) => {
+              const isActive = active === i;
+              return (
+                <li key={c.image}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActive(i);
+                      playerRef.current?.playFrom(c.t);
+                    }}
+                    aria-current={isActive ? "true" : undefined}
+                    className={`group flex w-full items-center gap-4 rounded-2xl border p-2 pr-4 text-left transition-all duration-300 ${
+                      isActive
+                        ? "border-accent/30 bg-background-elevated shadow-md"
+                        : "border-transparent hover:border-border hover:bg-background-elevated/70"
+                    }`}
+                  >
+                    <span className="relative h-14 w-20 shrink-0 overflow-hidden rounded-xl bg-foreground/10 sm:h-16 sm:w-24">
+                      <Image
+                        src={media.timelapse(`${c.image}.webp`)}
+                        alt=""
+                        fill
+                        sizes="96px"
+                        className="object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline gap-2">
+                        <span
+                          className={`font-sans text-[11px] font-medium uppercase tracking-[0.2em] ${
+                            isActive ? "text-accent" : "text-accent-soft"
+                          }`}
+                        >
+                          {c.month}
+                        </span>
+                        <span className="truncate font-display text-base text-foreground sm:text-lg">{c.title}</span>
+                      </span>
+                      <span className="mt-0.5 line-clamp-1 block font-sans text-xs text-foreground-muted sm:text-sm">
+                        {c.caption}
+                      </span>
+                    </span>
+                    <span
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                        isActive
+                          ? "bg-accent text-accent-foreground"
+                          : "bg-foreground/5 text-foreground group-hover:bg-accent group-hover:text-accent-foreground"
+                      }`}
+                      aria-hidden="true"
+                    >
+                      <svg viewBox="0 0 24 24" className="ml-0.5 h-3.5 w-3.5" fill="currentColor">
+                        <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
+                      </svg>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </Reveal>
+      </div>
     </section>
   );
 }

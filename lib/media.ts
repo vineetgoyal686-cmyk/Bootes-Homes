@@ -48,6 +48,9 @@ export const media = {
   /** Short muted looping clip for non-hero backgrounds. */
   bgLoop: () => assetUrl('/media/video/bg-loop.mp4'),
 
-  /** HLS package for the "watch full timelapse" modal player. */
+  /** Timelapse section month stills (`jan.webp`...), frames from the video. */
+  timelapse: (file: string) => assetUrl(`/media/timelapse/${file}`),
+
+  /** HLS package for the timelapse player. */
   hlsMaster: () => assetUrl('/media/hls/master.m3u8'),
 };

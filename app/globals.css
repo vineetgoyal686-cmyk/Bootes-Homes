@@ -98,3 +98,16 @@ body {
     transform: scale(1);
   }
 }
+
+/* Timelapse player open animation (TimelapseModal.tsx). */
+@keyframes player-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes player-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
