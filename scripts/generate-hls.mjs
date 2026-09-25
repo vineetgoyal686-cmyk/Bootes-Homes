@@ -11,7 +11,7 @@
  *
  * Usage: node scripts/generate-hls.mjs
  */
-import { existsSync, mkdirSync, rmSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, readdirSync, statSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { ffprobeJson, runFfmpeg } from './lib/ffmpeg.mjs';
@@ -112,6 +112,12 @@ args.push(
 ladder.forEach((r) => mkdirSync(path.join(HLS_DIR, r.name), { recursive: true }));
 
 runFfmpeg(args);
+
+// ffmpeg writes the master playlist's variant URIs using the output path's
+// separators, so on Windows they come out as "720p\prog.m3u8" - playlist
+// URIs are URLs and must use "/".
+const masterPath = path.join(HLS_DIR, 'master.m3u8');
+writeFileSync(masterPath, readFileSync(masterPath, 'utf8').replace(/\\/g, '/'));
 
 // --- Short muted background loop (for hero/other non-fullscreen backgrounds) ---
 mkdirSync(VIDEO_DIR, { recursive: true });
