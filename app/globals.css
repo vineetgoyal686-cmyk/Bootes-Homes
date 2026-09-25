@@ -87,3 +87,14 @@ body {
     transform: none;
   }
 }
+
+/* Speed badge in the timelapse player (TimelapseModal.tsx). */
+@keyframes speed-flash {
+  0% {
+    transform: scale(1.25);
+    background-color: rgba(56, 198, 244, 0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}

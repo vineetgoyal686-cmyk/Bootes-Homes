@@ -1,5 +1,5 @@
 import { Hero } from "@/components/sections/Hero";
-import { TimelapseScrub } from "@/components/sections/TimelapseScrub";
+import { TimelapseSection } from "@/components/sections/TimelapseSection";
 import { ProjectTimeline } from "@/components/sections/ProjectTimeline";
 import { JourneyStory } from "@/components/sections/JourneyStory";
 import { FeaturesSection } from "@/components/sections/FeaturesSection";
@@ -14,7 +14,7 @@ export function ProjectShowcase({ project }: { project: Project }) {
   return (
     <main>
       <Hero project={project} />
-      <TimelapseScrub />
+      <TimelapseSection />
       {/* The photo story covers the same stages with real photos; the card
           timeline stays as the fallback for projects without them. */}
       {project.journey.length > 0 ? (

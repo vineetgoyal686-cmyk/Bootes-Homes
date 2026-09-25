@@ -17,8 +17,8 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 /**
  * "The journey": a pinned, scroll-driven photo story - one real photo per
- * stage (before -> demolition -> foundation -> today). Same CSS-sticky +
- * ScrollTrigger-progress pattern as TimelapseScrub; React state only changes
+ * stage (before -> demolition -> foundation -> today). Uses the
+ * CSS-sticky + ScrollTrigger-progress pattern; React state only changes
  * when the stage index does (a handful of times), while the thin progress
  * bar is written straight to the DOM every scroll tick.
  *

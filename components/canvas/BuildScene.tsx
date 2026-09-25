@@ -13,7 +13,9 @@
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
-import { Environment } from "@react-three/drei";
+import { Environment, OrbitControls } from "@react-three/drei";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type OrbitControlsHandle = any;
 import { useHouseLoader } from "@/lib/store/house-loader";
 import {
   cloneSceneWithMaterials,
@@ -23,6 +25,7 @@ import {
 import { computeFraming } from "@/lib/three/frame-camera";
 import { media } from "@/lib/media";
 import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 
 const BLUEPRINT_LINE = new THREE.Color("#2d4fd1");
 const CLAY_COLOR = new THREE.Color("#efe9dd");
@@ -33,12 +36,14 @@ const CUT_COLOR = new THREE.Color().setRGB(0.98, 0.55, 0.22);
 // Build timeline (t: 0-1 over BUILD_SECONDS, plays once on mount):
 //  - blueprint lines + clay shell rise with the clip plane
 //  - the real textures/colours fade in once the structure is up
-// The camera orbits slowly the whole time and keeps going afterwards.
+// The camera auto-orbits the whole time (OrbitControls autoRotate) and can be
+// dragged with a mouse at any point.
 const START_DELAY = 0.8; // s - lets the hero's fade-in finish first
 const BUILD_SECONDS = 8;
 const SWEEP_START = 0;
 const SWEEP_END = 0.7;
-const ORBIT_SPEED = 0.06; // rad/s
+const AUTO_ROTATE_SPEED = 0.35; // OrbitControls units (1 = one turn per 30s)
+const AUTO_ROTATE_RAD_PER_S = ((2 * Math.PI) / 60) * AUTO_ROTATE_SPEED; // same, for touch
 const BASE_AZIMUTH = 0.35;
 const ELEVATION = 0.4;
 
@@ -71,6 +76,11 @@ export function BuildScene() {
   const { camera, gl, size } = useThree();
   const reducedMotion = useReducedMotion();
 
+  // Drag-to-rotate only with a mouse/trackpad: on touch screens the canvas
+  // fills the hero, and OrbitControls grabbing touches would stop the page
+  // from scrolling - there the orbit is driven manually in useFrame instead.
+  const finePointer = useMediaQuery("(pointer: fine)");
+  const controlsRef = useRef<OrbitControlsHandle>(null);
   const startRef = useRef<number | null>(null);
   const glowLightRef = useRef<THREE.PointLight>(null);
   const keyLightRef = useRef<THREE.DirectionalLight>(null);
@@ -96,7 +106,9 @@ export function BuildScene() {
 
     root.traverse((node) => {
       if (!(node instanceof THREE.Mesh)) return;
-      const mats = Array.isArray(node.material) ? node.material : [node.material];
+      const mats = Array.isArray(node.material)
+        ? node.material
+        : [node.material];
 
       for (const mat of mats) {
         mat.clippingPlanes = [plane];
@@ -110,20 +122,22 @@ export function BuildScene() {
         mat.side = THREE.DoubleSide;
         mat.transparent = true;
         mat.opacity = 0;
-        mat.onBeforeCompile = (shader: THREE.WebGLProgramParametersWithUniforms) => {
+        mat.onBeforeCompile = (
+          shader: THREE.WebGLProgramParametersWithUniforms,
+        ) => {
           Object.assign(shader.uniforms, uniforms);
           shader.fragmentShader = shader.fragmentShader
             .replace(
               "void main() {",
-              "uniform vec3 uClay;\nuniform float uReal;\nuniform vec3 uCut;\nuniform float uCutAmt;\nvoid main() {"
+              "uniform vec3 uClay;\nuniform float uReal;\nuniform vec3 uCut;\nuniform float uCutAmt;\nvoid main() {",
             )
             .replace(
               "#include <color_fragment>",
-              "#include <color_fragment>\ndiffuseColor.rgb = mix(uClay, diffuseColor.rgb, uReal);"
+              "#include <color_fragment>\ndiffuseColor.rgb = mix(uClay, diffuseColor.rgb, uReal);",
             )
             .replace(
               "#include <dithering_fragment>",
-              "#include <dithering_fragment>\nif (!gl_FrontFacing) gl_FragColor.rgb = mix(gl_FragColor.rgb, uCut, uCutAmt);"
+              "#include <dithering_fragment>\nif (!gl_FrontFacing) gl_FragColor.rgb = mix(gl_FragColor.rgb, uCut, uCutAmt);",
             );
         };
         mat.customProgramCacheKey = () => "build-reveal";
@@ -160,7 +174,9 @@ export function BuildScene() {
           node.geometry.dispose();
           (node.material as THREE.Material).dispose();
         } else if (node instanceof THREE.Mesh) {
-          const mats = Array.isArray(node.material) ? node.material : [node.material];
+          const mats = Array.isArray(node.material)
+            ? node.material
+            : [node.material];
           mats.forEach((m) => m.dispose());
         }
       });
@@ -180,30 +196,60 @@ export function BuildScene() {
     return { target: f.center.clone(), distance: f.distance, radius: f.radius };
   }, [built, size.width, size.height]);
 
-  useFrame(({ clock }) => {
+  // Initial camera placement; after this the orbit (OrbitControls, or the
+  // manual one below on touch screens) moves it.
+  useEffect(() => {
+    if (!framing) return;
+    const d = framing.distance;
+    camera.position.set(
+      framing.target.x + d * Math.sin(BASE_AZIMUTH) * Math.cos(ELEVATION),
+      framing.target.y + d * Math.sin(ELEVATION),
+      framing.target.z + d * Math.cos(BASE_AZIMUTH) * Math.cos(ELEVATION),
+    );
+    camera.lookAt(framing.target);
+    const controls = controlsRef.current;
+    if (controls) {
+      controls.target.copy(framing.target);
+      controls.update();
+    }
+  }, [framing, camera, finePointer]);
+
+  const lightDir = useMemo(() => new THREE.Vector3(), []);
+
+  useFrame(({ clock }, delta) => {
     if (!built || !framing) return;
-    if (startRef.current === null) startRef.current = clock.elapsedTime + START_DELAY;
+    if (!finePointer && !reducedMotion) {
+      camera.position.sub(framing.target);
+      camera.position.applyAxisAngle(
+        THREE.Object3D.DEFAULT_UP,
+        AUTO_ROTATE_RAD_PER_S * delta,
+      );
+      camera.position.add(framing.target);
+      camera.lookAt(framing.target);
+    }
+    if (startRef.current === null)
+      startRef.current = clock.elapsedTime + START_DELAY;
     const elapsed = clock.elapsedTime - startRef.current;
-    const t = reducedMotion ? 1 : THREE.MathUtils.clamp(elapsed / BUILD_SECONDS, 0, 1);
+    const t = reducedMotion
+      ? 1
+      : THREE.MathUtils.clamp(elapsed / BUILD_SECONDS, 0, 1);
     const { box, center } = built;
     const height = box.max.y - box.min.y || 1;
     const margin = height * 0.02;
 
-    // Camera: slow continuous orbit (still under reduced motion).
-    const az = BASE_AZIMUTH + (reducedMotion ? 0 : Math.max(0, elapsed) * ORBIT_SPEED);
+    // Key light follows the camera round (from above and a little to one
+    // side), so whichever face is towards the viewer is lit - a fixed light
+    // left the far side of the house almost black once it rotated round.
     const d = framing.distance;
-    camera.position.set(
-      framing.target.x + d * Math.sin(az) * Math.cos(ELEVATION),
-      framing.target.y + d * Math.sin(ELEVATION),
-      framing.target.z + d * Math.cos(az) * Math.cos(ELEVATION)
-    );
-    camera.lookAt(framing.target);
-
     if (keyLightRef.current) {
+      lightDir
+        .set(camera.position.x - center.x, 0, camera.position.z - center.z)
+        .normalize();
+      lightDir.applyAxisAngle(THREE.Object3D.DEFAULT_UP, 0.6);
       keyLightRef.current.position.set(
-        center.x + d * 0.6,
+        center.x + lightDir.x * d * 0.7,
         center.y + d * 0.9,
-        center.z + d * 0.25
+        center.z + lightDir.z * d * 0.7,
       );
       keyLightRef.current.target.position.copy(center);
       keyLightRef.current.target.updateMatrixWorld();
@@ -237,11 +283,17 @@ export function BuildScene() {
     }
 
     // Orange cut glow only while the plane is actually inside the model.
-    const cutAmt = smoothstep(SWEEP_START, SWEEP_START + 0.05, t) * (1 - smoothstep(SWEEP_END - 0.06, SWEEP_END, t));
+    const cutAmt =
+      smoothstep(SWEEP_START, SWEEP_START + 0.05, t) *
+      (1 - smoothstep(SWEEP_END - 0.06, SWEEP_END, t));
     built.uniforms.uCutAmt.value = cutAmt;
 
     if (glowLightRef.current) {
-      glowLightRef.current.position.set(center.x, THREE.MathUtils.clamp(planeY, box.min.y, box.max.y) + height * 0.05, center.z);
+      glowLightRef.current.position.set(
+        center.x,
+        THREE.MathUtils.clamp(planeY, box.min.y, box.max.y) + height * 0.05,
+        center.z,
+      );
       glowLightRef.current.intensity = cutAmt * 6;
     }
   });
@@ -268,10 +320,28 @@ export function BuildScene() {
         shadow-camera-far={framing.distance * 3}
       />
       <Suspense fallback={null}>
-        <Environment files={media.environmentHdri()} environmentIntensity={0.7} />
+        <Environment
+          files={media.environmentHdri()}
+          environmentIntensity={0.7}
+        />
       </Suspense>
 
       <primitive object={built.root} />
+
+      {finePointer && (
+        <OrbitControls
+          ref={controlsRef}
+          enablePan={false}
+          enableZoom={false}
+          enableDamping
+          dampingFactor={0.08}
+          rotateSpeed={0.6}
+          autoRotate={!reducedMotion}
+          autoRotateSpeed={AUTO_ROTATE_SPEED}
+          minPolarAngle={Math.PI / 4}
+          maxPolarAngle={Math.PI / 2.1}
+        />
+      )}
 
       <pointLight
         ref={glowLightRef}
