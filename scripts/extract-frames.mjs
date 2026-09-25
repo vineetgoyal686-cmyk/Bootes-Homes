@@ -2,8 +2,8 @@
 /**
  * Extracts an evenly-spaced image sequence from the construction timelapse for the
  * scroll-scrubbed "Apple-style" canvas section. Produces two sets:
- *   - desktop: source width (capped at 1920px)
- *   - mobile:  ~960px wide
+ *   - desktop: source width, WebP q90
+ *   - mobile:  same (see note below)
  * Also writes two poster stills (first + last frame) for fast first paint / OG images.
  *
  * Never touches the source video - reads it, writes only into web/public/media/.
@@ -44,20 +44,14 @@ const srcHeight = vStream.height;
 
 console.log(`Source: ${srcWidth}x${srcHeight}, ${duration.toFixed(2)}s`);
 
-// NOTE: spec asked for "1920px wide or source width if smaller" (source is 1280px
-// here) at WebP q~80, but this footage is a noisy real photo/timelapse (dust, gravel,
-// fine texture) rather than a clean render - at 1280px/q80 each frame came out
-// ~230KB, i.e. ~34MB for the 150-frame desktop set alone before the user has
-// scrolled at all. That directly conflicts with the "mobile 4G in India" performance
-// requirement, so this deliberately trims resolution/quality instead: 1024px/q50
-// (~108KB/frame) for desktop and 640px/q50 (~45KB/frame) for mobile. Combined with
-// progressive/windowed loading (only frames near the current scroll position are
-// fetched, see Phase 3) this keeps the section fast without a visible quality hit at
-// typical viewport sizes. Revisit if the client wants sharper frames and accepts the
-// extra weight.
-const desktopWidth = Math.min(1024, srcWidth);
-const mobileWidth = 640;
-const WEBP_QUALITY = 50;
+// Full source resolution at high quality for both sets - the client wants the
+// timelapse at original quality. Only frames near the current scroll position
+// are fetched (TimelapseCanvas), so the weight is spread out. Mobile gets the
+// full width too: in portrait the frame is scaled up to fill the screen height,
+// so anything smaller would be visibly soft.
+const desktopWidth = srcWidth;
+const mobileWidth = srcWidth;
+const WEBP_QUALITY = 90;
 
 const fps = FRAME_COUNT / duration;
 

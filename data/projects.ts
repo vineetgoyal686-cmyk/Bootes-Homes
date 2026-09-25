@@ -202,8 +202,8 @@ export const projects: Project[] = [
         caption: "The original house on the plot, before work began.",
         image: "before",
         view: "Street view",
-        width: 853,
-        height: 1400,
+        width: 902,
+        height: 1480,
       },
       {
         label: "Demolition complete",
@@ -211,8 +211,8 @@ export const projects: Project[] = [
         caption: "The old structure cleared and the site levelled, ready for excavation.",
         image: "demolition",
         view: "Site camera",
-        width: 1600,
-        height: 817,
+        width: 3840,
+        height: 1960,
       },
       {
         label: "Foundation",
@@ -220,8 +220,8 @@ export const projects: Project[] = [
         caption: "Excavation done and the first reinforcement cages going in.",
         image: "foundation",
         view: "Site camera",
-        width: 1600,
-        height: 817,
+        width: 3840,
+        height: 1960,
       },
       {
         label: "Today",

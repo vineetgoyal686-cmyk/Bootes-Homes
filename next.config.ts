@@ -8,7 +8,12 @@ const nextConfig: NextConfig = {
   // Hide the "N" dev-tools badge (dev-only; it never ships to production).
   // Compile/runtime errors still surface in dev.
   devIndicators: false,
-  images: mediaBase ? { remotePatterns: [new URL(`${mediaBase}/**`)] } : undefined,
+  images: {
+    // Only allowed quality - every <Image> (default 75) is served at 90, so
+    // photos aren't visibly recompressed.
+    qualities: [90],
+    ...(mediaBase ? { remotePatterns: [new URL(`${mediaBase}/**`)] } : {}),
+  },
 };
 
 export default nextConfig;

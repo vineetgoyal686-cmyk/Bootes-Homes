@@ -8,7 +8,7 @@
  *                    (spec/gloss is deprecated and not what three.js/R3F expects)
  *   2. optimize    - dedup, weld, instance repeated meshes (doors/windows repeat
  *                    hundreds of times in this model), Draco-compress geometry,
- *                    resize + WebP-compress textures, prune unused data
+ *                    keep textures as-is, prune unused data
  *
  * Never touches the source GT_gltf/ folder - reads it, writes only into
  * web/public/models/ and a scratch tmp file that gets deleted after.
@@ -119,8 +119,9 @@ run([
   TMP,
   OUT,
   '--compress', 'draco',
-  '--texture-compress', 'webp',
-  '--texture-size', '1024',
+  // Textures stay in their original PNG/JPEG form (they're only 256px, so
+  // re-compressing them saved little and cost quality).
+  '--texture-compress', 'false',
   // GPU instancing (EXT_mesh_gpu_instancing) is deliberately OFF: on this model
   // it corrupts the transform of at least one instanced mesh, stretching it far
   // above the real roofline (verified: an isolated `--instance true` run alone
