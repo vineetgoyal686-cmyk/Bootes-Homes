@@ -1,172 +1,230 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { formatDate } from "@/lib/format";
 import { media } from "@/lib/media";
+import { ThenAndNow } from "@/components/sections/ThenAndNow";
 import type { Project } from "@/data/projects";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const EYEBROW =
-  "inline-block rounded-full border border-border bg-background-elevated/90 px-4 py-1.5 font-sans text-xs uppercase tracking-[0.3em] text-accent-soft shadow-sm";
+/** Vertical scroll spent per px of horizontal travel - under 1 keeps the
+ * pinned stretch short while the cards still glide past. */
+const SCROLL_PER_PX = 0.45;
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /**
- * "The journey": a pinned, scroll-driven photo story - one real photo per
- * stage (before -> demolition -> foundation -> today). Uses the
- * CSS-sticky + ScrollTrigger-progress pattern; React state only changes
- * when the stage index does (a handful of times), while the thin progress
- * bar is written straight to the DOM every scroll tick.
+ * "The journey": the stages as a pinned, horizontally scrolling gallery of
+ * 3D cards (each swings into place as it reaches the centre, photos drifting
+ * at their own depth), closing on a drag-to-compare Then & Now.
  *
- * The stages mix street-level and site-camera photos, so they cross-fade
- * (with a slow settle-in zoom) rather than wipe - a wipe only reads well
- * between photos taken from the same spot.
+ * The page's vertical scroll drives the track via a scrubbed GSAP tween on a
+ * CSS-sticky stage; per-card transforms are written straight to the DOM in
+ * the tween's onUpdate, so React never re-renders while scrolling.
  */
 export function JourneyStory({ project }: { project: Project }) {
   const stages = project.journey;
-  const wrapperRef = useRef<HTMLElement>(null);
-  const progressBarRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(0);
+  const sectionRef = useRef<HTMLElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef<HTMLDivElement[]>([]);
+  const barRef = useRef<HTMLDivElement>(null);
+  const labelRefs = useRef<HTMLSpanElement[]>([]);
 
   useEffect(() => {
-    if (!wrapperRef.current) return;
-    const ctx = gsap.context(() => {
-      ScrollTrigger.create({
-        trigger: wrapperRef.current,
-        start: "top top",
-        end: "bottom bottom",
-        onUpdate: (self) => {
-          const idx = Math.min(stages.length - 1, Math.floor(self.progress * stages.length));
-          setActive((cur) => (cur === idx ? cur : idx));
-          if (progressBarRef.current) {
-            progressBarRef.current.style.transform = `scaleX(${self.progress})`;
-          }
-        },
+    const section = sectionRef.current;
+    const track = trackRef.current;
+    if (!section || !track) return;
+
+    const travel = () => Math.max(0, track.scrollWidth - window.innerWidth);
+    // Pinned length follows the track's real width (it changes with the
+    // viewport), so the section height is set here rather than in CSS.
+    const size = () => {
+      section.style.height = `${window.innerHeight + travel() * SCROLL_PER_PX}px`;
+    };
+    size();
+
+    const place = () => {
+      const vw = window.innerWidth;
+      cardRefs.current.forEach((card) => {
+        if (!card) return;
+        const r = card.getBoundingClientRect();
+        // -1 (a screen to the left) .. 0 (centred) .. 1 (a screen to the right)
+        const d = Math.max(-1.5, Math.min(1.5, (r.left + r.width / 2 - vw / 2) / vw));
+        const inner = card.firstElementChild as HTMLElement | null;
+        if (inner) {
+          inner.style.transform = `rotateY(${(-d * 16).toFixed(2)}deg) scale(${(1 - Math.min(Math.abs(d) * 0.1, 0.1)).toFixed(3)})`;
+          inner.style.opacity = String(1 - Math.min(Math.abs(d) * 0.35, 0.45));
+        }
+        card.querySelectorAll<HTMLElement>("[data-depth]").forEach((el) => {
+          el.style.translate = `${(-d * Number(el.dataset.depth)).toFixed(1)}px 0`;
+        });
       });
-    }, wrapperRef);
+    };
+
+    const ctx = gsap.context(() => {
+      gsap.to(track, {
+        x: () => -travel(),
+        ease: "none",
+        scrollTrigger: {
+          trigger: section,
+          start: "top top",
+          end: "bottom bottom",
+          scrub: 0.8,
+          invalidateOnRefresh: true,
+          onRefreshInit: size,
+          onUpdate: (self) => {
+            if (barRef.current) barRef.current.style.transform = `scaleX(${self.progress})`;
+            const idx = Math.min(stages.length - 1, Math.floor(self.progress * stages.length * 1.05));
+            labelRefs.current.forEach((el, i) => el?.setAttribute("data-active", String(i <= idx)));
+          },
+        },
+        onUpdate: place,
+      });
+    }, section);
+    place();
+
     return () => ctx.revert();
   }, [stages.length]);
 
-  // Jump to the middle of a stage's scroll band.
-  const goTo = (i: number) => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    const top = el.getBoundingClientRect().top + window.scrollY;
-    const range = el.offsetHeight - window.innerHeight;
-    window.scrollTo({ top: top + ((i + 0.5) / stages.length) * range, behavior: "smooth" });
-  };
-
-  const stage = stages[active];
-
   return (
-    <section
-      ref={wrapperRef}
-      className="relative w-full bg-background"
-      style={{ height: `${stages.length * 85 + 15}vh` }}
-    >
-      <div className="sticky top-0 flex h-[100svh] w-full flex-col overflow-hidden px-6 pb-8 pt-24 sm:pt-28 lg:px-16">
-        <div className="mx-auto mb-6 w-full max-w-6xl text-center lg:mb-10 lg:text-left">
-          <p className={EYEBROW}>The journey</p>
-          <h2 className="mt-3 font-display text-3xl text-foreground sm:text-5xl">
-            From old house to new home
-          </h2>
-        </div>
+    <div className="bg-[#0b0e1a] text-white">
+      <section ref={sectionRef} className="relative" style={{ height: "300vh" }}>
+        <div className="sticky top-0 h-[100svh] overflow-hidden [perspective:1600px]">
+          {/* Soft light in the dark */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -left-40 top-1/4 h-[60vh] w-[60vh] rounded-full bg-accent/25 blur-[120px]"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-20 bottom-0 h-[50vh] w-[50vh] rounded-full bg-accent-cyan/10 blur-[120px]"
+          />
 
-        <div className="mx-auto grid w-full max-w-6xl content-start gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-[1fr_1.5fr] lg:content-center lg:gap-14">
-          {/* Stage text + stepper */}
-          <div className="order-2 flex flex-col lg:order-1 lg:justify-center">
-            <div key={active} className="animate-[journey-in_600ms_cubic-bezier(0.22,1,0.36,1)]">
-              <p className="font-sans text-xs uppercase tracking-[0.3em] text-accent-soft">
-                {pad(active + 1)} / {pad(stages.length)} · {formatDate(stage.date)}
+          <div
+            ref={trackRef}
+            className="relative flex h-full items-center gap-6 pl-6 pr-6 sm:gap-[4vw] sm:pr-[8vw] pt-16 will-change-transform sm:pl-16"
+          >
+            {/* Intro */}
+            <div className="w-[80vw] shrink-0 sm:w-[38vw] lg:w-[30vw]">
+              <p className="font-sans text-xs uppercase tracking-[0.35em] text-accent-cyan">The journey</p>
+              <h2 className="mt-5 font-display text-4xl leading-[1.05] sm:text-6xl">
+                From old house
+                <br />
+                <span className="italic text-white/60">to new home.</span>
+              </h2>
+              <p className="mt-6 max-w-sm font-sans text-white/60">
+                One plot in Sector 20, four moments in time - told in the photos taken along the way.
               </p>
-              <h3 className="mt-2 font-display text-2xl text-foreground sm:text-4xl">{stage.label}</h3>
-              <p className="mt-2 max-w-md font-sans text-sm text-foreground-muted sm:text-base">
-                {stage.caption}
+              <p className="mt-10 inline-flex items-center gap-3 font-sans text-xs uppercase tracking-[0.3em] text-white/50">
+                Scroll to walk through
+                <span className="inline-block animate-[nudge-x_1.6s_ease-in-out_infinite]">→</span>
               </p>
             </div>
 
-            <ol className="mt-6 flex gap-2 lg:mt-10 lg:flex-col lg:gap-0">
-              {stages.map((s, i) => {
-                const done = i <= active;
-                return (
-                  <li key={s.image} className="flex-1 lg:flex-none">
-                    <button
-                      type="button"
-                      onClick={() => goTo(i)}
-                      aria-current={i === active ? "step" : undefined}
-                      className="group flex w-full items-center gap-3 py-1 text-left lg:py-2.5"
-                    >
-                      <span
-                        className={`h-1 w-full rounded-full transition-colors duration-500 lg:h-2.5 lg:w-2.5 lg:shrink-0 ${
-                          done ? "bg-accent" : "bg-accent/15"
-                        } ${i === active ? "lg:ring-4 lg:ring-accent/20" : ""}`}
-                      />
-                      <span
-                        className={`hidden font-sans text-sm transition-colors lg:inline ${
-                          i === active ? "text-foreground" : "text-foreground-muted group-hover:text-foreground"
-                        }`}
-                      >
-                        {s.label}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          </div>
-
-          {/* Photo frame */}
-          <div className="relative order-1 h-[46svh] overflow-hidden rounded-3xl bg-foreground shadow-2xl lg:order-2 lg:aspect-[4/3] lg:h-auto lg:max-h-[62vh] lg:w-full">
             {stages.map((s, i) => {
-              const shown = i === active;
-              // Landscape (site camera) photos fill the frame; portrait street
-              // photos are shown whole over their own blurred backdrop.
-              const landscape = s.width > s.height;
+              const [main, ...rest] = s.images;
               return (
                 <div
-                  key={s.image}
-                  aria-hidden={!shown}
-                  className="absolute inset-0 transition-[opacity,transform] duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)]"
-                  style={{ opacity: shown ? 1 : 0, transform: `scale(${shown ? 1 : 1.06})` }}
+                  key={s.label}
+                  ref={(el) => {
+                    if (el) cardRefs.current[i] = el;
+                  }}
+                  className="h-[68svh] w-[calc(100vw-3rem)] shrink-0 [transform-style:preserve-3d] sm:w-[72vw] lg:w-[64vw]"
                 >
-                  {/* Blurred fill so portrait (street) and landscape (site
-                      camera) photos both sit in the same frame uncropped. */}
-                  <Image
-                    src={media.journey(s.image, "bg")}
-                    alt=""
-                    fill
-                    unoptimized
-                    className="scale-125 object-cover opacity-70 blur-2xl"
-                  />
-                  <Image
-                    src={media.journey(s.image)}
-                    alt={`${s.label} - ${project.name}, ${formatDate(s.date)}`}
-                    fill
-                    sizes="(min-width: 1024px) 60vw, 100vw"
-                    className={landscape ? "object-cover object-[60%_50%]" : "object-contain"}
-                  />
+                  <article className="grid h-full grid-rows-[1fr_auto] gap-5 will-change-transform lg:grid-cols-[0.62fr_1.38fr] lg:grid-rows-1 lg:gap-8">
+                    {/* Text */}
+                    <div className="order-2 flex flex-col justify-end lg:order-1 lg:pb-6">
+                      <span
+                        className="font-display text-6xl leading-none text-transparent sm:text-8xl"
+                        style={{ WebkitTextStroke: "1px rgba(255,255,255,0.35)" }}
+                      >
+                        {pad(i + 1)}
+                      </span>
+                      <p className="mt-3 font-sans text-xs uppercase tracking-[0.3em] text-accent-cyan">
+                        {s.label} · {formatDate(s.date)}
+                      </p>
+                      <h3 className="mt-2 font-display text-3xl sm:text-4xl lg:text-5xl">{s.tagline}</h3>
+                      <p className="mt-3 max-w-sm font-sans text-sm text-white/60 sm:text-base">{s.caption}</p>
+                    </div>
+
+                    {/* Photos: main shot + supporting shots layered in front */}
+                    <div className="relative order-1 min-h-0 lg:order-2">
+                      <div className="absolute inset-0 overflow-hidden rounded-3xl bg-white/5 shadow-[0_40px_80px_-30px_rgba(0,0,0,0.8)]">
+                        <div data-depth="40" className="absolute -inset-x-10 inset-y-0">
+                          <Image
+                            src={media.journey(main.name)}
+                            alt={`${s.label} - ${project.name}`}
+                            fill
+                            sizes="(min-width: 1024px) 44vw, 86vw"
+                            className="object-cover"
+                            style={{ objectPosition: main.focus }}
+                          />
+                        </div>
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+                        <span className="absolute left-4 top-4 rounded-full bg-black/45 px-3 py-1 font-sans text-[10px] uppercase tracking-[0.25em] text-white backdrop-blur-md">
+                          {s.view}
+                        </span>
+                      </div>
+
+                      {rest.slice(0, 2).map((img, j) => (
+                        <div
+                          key={img.name}
+                          data-depth={j === 0 ? "-70" : "-110"}
+                          className={`absolute hidden overflow-hidden rounded-2xl border-4 border-[#0b0e1a] shadow-2xl sm:block ${
+                            j === 0
+                              ? "-bottom-6 -left-8 h-[38%] w-[34%] -rotate-3"
+                              : "-right-6 -top-6 h-[30%] w-[28%] rotate-3"
+                          }`}
+                        >
+                          <Image
+                            src={media.journey(img.name)}
+                            alt=""
+                            fill
+                            sizes="20vw"
+                            className="object-cover"
+                            style={{ objectPosition: img.focus }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </article>
                 </div>
               );
             })}
+          </div>
 
-            <span className="absolute left-4 top-4 rounded-full bg-black/45 px-3 py-1 font-sans text-[11px] uppercase tracking-[0.2em] text-white backdrop-blur-sm">
-              {stage.view}
-            </span>
-
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-white/15">
+          {/* Progress */}
+          <div className="absolute inset-x-6 bottom-6 sm:inset-x-16 sm:bottom-8">
+            <div className="h-px w-full bg-white/15">
               <div
-                ref={progressBarRef}
-                className="h-full origin-left bg-accent-cyan"
+                ref={barRef}
+                className="h-full origin-left bg-gradient-to-r from-accent to-accent-cyan"
                 style={{ transform: "scaleX(0)" }}
               />
             </div>
+            <div className="mt-3 flex justify-between">
+              {stages.map((s, i) => (
+                <span
+                  key={s.label}
+                  ref={(el) => {
+                    if (el) labelRefs.current[i] = el;
+                  }}
+                  data-active={i === 0}
+                  className="font-sans text-[11px] uppercase tracking-[0.25em] text-white/35 transition-colors duration-500 data-[active=true]:text-white"
+                >
+                  {s.label}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+
+      {stages.length > 1 && <ThenAndNow before={stages[0]} after={stages[stages.length - 1]} />}
+    </div>
   );
 }

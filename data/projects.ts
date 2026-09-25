@@ -23,18 +23,26 @@ export interface FloorArea {
   sqft: number;
 }
 
-export interface JourneyStage {
-  label: string;
-  /** ISO date the photo was taken. */
-  date: string;
-  caption: string;
+export interface JourneyImage {
   /** File name under /media/journey (without extension). */
-  image: string;
-  /** Where the photo was taken from - the stages mix a street-level view
-   * and the on-site camera, so this is shown to explain the angle change. */
-  view: "Street view" | "Site camera";
+  name: string;
   width: number;
   height: number;
+  /** CSS object-position for cropping into the card frame (default centre). */
+  focus?: string;
+}
+
+export interface JourneyStage {
+  label: string;
+  /** Short headline for the stage card. */
+  tagline: string;
+  /** ISO date of the stage's main photo. */
+  date: string;
+  caption: string;
+  /** Where the main photo was taken from. */
+  view: "Street view" | "Site camera";
+  /** First image is the hero of the card; the rest are supporting shots. */
+  images: JourneyImage[];
 }
 
 /** A point in the timelapse video and the date the site camera shows there. */
@@ -251,39 +259,49 @@ export const projects: Project[] = [
     journey: [
       {
         label: "Before",
+        tagline: "Where it began.",
         date: "2024-12-14",
-        caption: "The original house on the plot, before work began.",
-        image: "before",
+        caption: "The original house on the plot, days before work started.",
         view: "Street view",
-        width: 902,
-        height: 1480,
+        images: [
+          { name: "before", width: 902, height: 1480, focus: "50% 35%" },
+          { name: "before-2", width: 820, height: 820 },
+        ],
       },
       {
-        label: "Demolition complete",
+        label: "Demolition",
+        tagline: "Back to the ground.",
         date: "2025-02-01",
-        caption: "The old structure cleared and the site levelled, ready for excavation.",
-        image: "demolition",
+        caption: "Taken down through January, by day and through the night, then levelled.",
         view: "Site camera",
-        width: 3840,
-        height: 1960,
+        images: [
+          { name: "demolition", width: 3840, height: 1960, focus: "70% 60%" },
+          { name: "demolition-2", width: 3840, height: 1960, focus: "72% 55%" },
+          { name: "demolition-3", width: 3840, height: 1960, focus: "68% 60%" },
+        ],
       },
       {
         label: "Foundation",
+        tagline: "Built from below.",
         date: "2025-02-15",
-        caption: "Excavation done and the first reinforcement cages going in.",
-        image: "foundation",
+        caption: "Excavation, footings and the first steel cages set into the earth.",
         view: "Site camera",
-        width: 3840,
-        height: 1960,
+        images: [
+          { name: "foundation", width: 3840, height: 1960, focus: "74% 60%" },
+          { name: "foundation-2", width: 1200, height: 1240 },
+          { name: "foundation-3", width: 3840, height: 1960, focus: "74% 60%" },
+        ],
       },
       {
         label: "Today",
+        tagline: "Standing tall.",
         date: "2026-09-25",
-        caption: "The new home standing tall, with finishing work underway.",
-        image: "today",
+        caption: "The new home on the same plot, with finishing work underway.",
         view: "Street view",
-        width: 960,
-        height: 1130,
+        images: [
+          { name: "today", width: 960, height: 1130, focus: "50% 25%" },
+          { name: "today-2", width: 620, height: 880 },
+        ],
       },
     ],
     galleryPlaceholderCount: 8,

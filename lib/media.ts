@@ -40,10 +40,8 @@ export const media = {
     end: () => assetUrl('/media/posters/poster-end.jpg'),
   },
 
-  /** Stage photos for the project journey (see data/projects.ts `journey`).
-   * `bg` is a tiny version used as a blurred backdrop behind the photo. */
-  journey: (name: string, variant: 'full' | 'bg' = 'full') =>
-    assetUrl(`/media/journey/${name}${variant === 'bg' ? '-bg' : ''}.webp`),
+  /** Stage photos for the project journey (see data/projects.ts `journey`). */
+  journey: (name: string) => assetUrl(`/media/journey/${name}.webp`),
 
   /** Short muted looping clip for non-hero backgrounds. */
   bgLoop: () => assetUrl('/media/video/bg-loop.mp4'),

@@ -111,3 +111,14 @@ body {
     transform: translateY(16px) scale(0.98);
   }
 }
+
+/* "Scroll to walk through" arrow in the journey intro (JourneyStory.tsx). */
+@keyframes nudge-x {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(6px);
+  }
+}
