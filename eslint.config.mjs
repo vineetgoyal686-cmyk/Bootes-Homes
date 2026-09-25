@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // public/media/hls/**/*.ts are MPEG-TS video segments, not TypeScript - they
+    // collide with the .ts extension and otherwise crash the parser.
+    "public/**",
   ]),
 ]);
 

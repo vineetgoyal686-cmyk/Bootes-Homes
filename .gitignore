@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# generated media (regenerate with scripts/*.mjs - too large for git; will move to
+# Cloudflare R2). house.glb and posters are small/central enough to keep committed.
+/public/media/frames/
+/public/media/hls/
+/public/media/video/

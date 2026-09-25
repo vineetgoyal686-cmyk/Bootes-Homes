@@ -1,26 +1,89 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light, premium architectural theme built around the Bootes Homes logo's
+     indigo-to-cyan blue gradient. */
+  --background: #faf9f6;
+  --background-elevated: #ffffff;
+  --foreground: #1a1f36;
+  --foreground-muted: #5b6178;
+
+  --accent: #3e4c9c; /* brand indigo-blue, from the logo wordmark */
+  --accent-soft: #4a58a8; /* eyebrow/label text - needs to stay readable on the light bg */
+  --accent-cyan: #38c6f4; /* logo mark's bright gradient highlight */
+  --accent-foreground: #ffffff;
+
+  /* Construction-line glow: a deliberate warm counterpoint to the blue brand
+     palette, reads as "active/in-progress" against the cool blueprint/clay
+     tones in the build-reveal section. */
+  --glow: #e08a4f;
+
+  --blueprint-paper: #f3f1ea;
+  --blueprint-line: #2d4fd1;
+  --glass-tint: #bfe0f2;
+
+  --border: rgba(26, 31, 54, 0.1);
+
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-inter);
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-background-elevated: var(--background-elevated);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-cyan: var(--accent-cyan);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-glow: var(--glow);
+  --color-blueprint-paper: var(--blueprint-paper);
+  --color-blueprint-line: var(--blueprint-line);
+  --color-glass-tint: var(--glass-tint);
+  --color-border: var(--border);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
+}
+
+html {
+  color-scheme: light;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Stage text swap in the journey story (JourneyStory.tsx). */
+@keyframes journey-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
