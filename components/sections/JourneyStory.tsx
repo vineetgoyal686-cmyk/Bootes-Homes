@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -34,27 +34,14 @@ export function JourneyStory({ project }: { project: Project }) {
   const cardRefs = useRef<HTMLDivElement[]>([]);
   const barRef = useRef<HTMLDivElement>(null);
   const labelRefs = useRef<HTMLSpanElement[]>([]);
-  const [viewing, setViewing] = useState<number | null>(null);
+  const [viewing, setViewing] = useState<LightboxImage | null>(null);
 
-  // Every journey photo in order, so the viewer can step through the whole
-  // story from whichever photo was clicked.
-  const gallery = useMemo(() => {
-    const list: LightboxImage[] = [];
-    const start: number[] = [];
-    stages.forEach((s) => {
-      start.push(list.length);
-      s.images.forEach((img) =>
-        list.push({
-          src: media.journey(img.name),
-          alt: `${s.label} - ${project.name}`,
-          width: img.width,
-          height: img.height,
-          caption: `${s.label} · ${formatDate(s.date)}`,
-        })
-      );
-    });
-    return { list, start };
-  }, [stages, project.name]);
+  const photo = (s: (typeof stages)[number], name: string, from: HTMLElement): LightboxImage => ({
+    src: media.journey(name),
+    alt: `${s.label} - ${project.name}`,
+    caption: `${s.label} · ${formatDate(s.date)}`,
+    preview: from.querySelector("img")?.currentSrc,
+  });
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -155,9 +142,9 @@ export function JourneyStory({ project }: { project: Project }) {
                   ref={(el) => {
                     if (el) cardRefs.current[i] = el;
                   }}
-                  className="h-[68svh] w-[calc(100vw-3rem)] shrink-0 [transform-style:preserve-3d] sm:w-[72vw] lg:w-[64vw]"
+                  className="pointer-events-none h-[68svh] w-[calc(100vw-3rem)] shrink-0 [perspective:1600px] sm:w-[72vw] lg:w-[64vw]"
                 >
-                  <article className="grid h-full grid-rows-[1fr_auto] gap-5 will-change-transform lg:grid-cols-[0.62fr_1.38fr] lg:grid-rows-1 lg:gap-8">
+                  <article className="pointer-events-auto grid h-full grid-rows-[1fr_auto] gap-5 will-change-transform lg:grid-cols-[0.62fr_1.38fr] lg:grid-rows-1 lg:gap-8">
                     {/* Text */}
                     <div className="order-2 flex flex-col justify-end lg:order-1 lg:pb-6">
                       <span
@@ -177,8 +164,8 @@ export function JourneyStory({ project }: { project: Project }) {
                     <div className="relative order-1 min-h-0 lg:order-2">
                       <button
                         type="button"
-                        onClick={() => setViewing(gallery.start[i])}
-                        aria-label={`View ${s.label} photos full screen`}
+                        onClick={(e) => setViewing(photo(s, main.name, e.currentTarget))}
+                        aria-label={`View ${s.label} photo full screen`}
                         className="group/photo absolute inset-0 cursor-zoom-in overflow-hidden rounded-3xl bg-white/5 text-left shadow-[0_40px_80px_-30px_rgba(0,0,0,0.8)]"
                       >
                         <div data-depth="40" className="absolute -inset-x-10 inset-y-0">
@@ -199,7 +186,7 @@ export function JourneyStory({ project }: { project: Project }) {
                           <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
                             <path d="M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z" />
                           </svg>
-                          {s.images.length > 1 ? `${s.images.length} photos` : "View"}
+                          View
                         </span>
                       </button>
 
@@ -207,7 +194,7 @@ export function JourneyStory({ project }: { project: Project }) {
                         <button
                           type="button"
                           key={img.name}
-                          onClick={() => setViewing(gallery.start[i] + j + 1)}
+                          onClick={(e) => setViewing(photo(s, img.name, e.currentTarget))}
                           aria-label={`View ${s.label} photo ${j + 2} full screen`}
                           data-depth={j === 0 ? "-70" : "-110"}
                           className={`absolute hidden cursor-zoom-in overflow-hidden rounded-2xl border-4 border-[#0b0e1a] shadow-2xl transition-transform duration-300 hover:scale-105 sm:block ${
@@ -262,7 +249,7 @@ export function JourneyStory({ project }: { project: Project }) {
 
       {stages.length > 1 && <ThenAndNow before={stages[0]} after={stages[stages.length - 1]} />}
 
-      <Lightbox images={gallery.list} index={viewing} onClose={() => setViewing(null)} onIndexChange={setViewing} />
+      <Lightbox image={viewing} onClose={() => setViewing(null)} />
     </div>
   );
 }

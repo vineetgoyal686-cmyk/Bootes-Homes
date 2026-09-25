@@ -122,3 +122,11 @@ body {
     transform: translateX(6px);
   }
 }
+
+/* Photo viewer open (Lightbox.tsx). */
+@keyframes photo-zoom {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
