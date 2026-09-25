@@ -10,7 +10,7 @@
  */
 /* eslint-disable react-hooks/immutability */
 
-import { Suspense, useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 import { Environment } from "@react-three/drei";
@@ -22,32 +22,29 @@ import {
 } from "@/lib/three/model-utils";
 import { computeFraming } from "@/lib/three/frame-camera";
 import { media } from "@/lib/media";
+import { useReducedMotion } from "@/lib/hooks/use-reduced-motion";
 
 const BLUEPRINT_LINE = new THREE.Color("#2d4fd1");
 const CLAY_COLOR = new THREE.Color("#efe9dd");
-const BG_BLUEPRINT = new THREE.Color("#f3f1ea");
-const BG_SITE = new THREE.Color("#faf9f6");
 // Written straight into gl_FragColor (after tone mapping/colour-space
 // conversion), so it's raw display RGB rather than a hex-converted Color.
 const CUT_COLOR = new THREE.Color().setRGB(0.98, 0.55, 0.22);
 
-// Scroll timeline (0-1 progress through the section):
+// Build timeline (t: 0-1 over BUILD_SECONDS, plays once on mount):
 //  - blueprint lines + clay shell rise with the clip plane
 //  - the real textures/colours fade in once the structure is up
-//  - camera swings slowly around the house the whole way
+// The camera orbits slowly the whole time and keeps going afterwards.
+const START_DELAY = 0.8; // s - lets the hero's fade-in finish first
+const BUILD_SECONDS = 8;
 const SWEEP_START = 0;
 const SWEEP_END = 0.7;
-const ORBIT_SWING = 0.7; // radians of azimuth covered over the whole scroll
-const BASE_AZIMUTH = 0.6;
+const ORBIT_SPEED = 0.06; // rad/s
+const BASE_AZIMUTH = 0.35;
 const ELEVATION = 0.4;
 
 function smoothstep(edge0: number, edge1: number, x: number) {
   const t = THREE.MathUtils.clamp((x - edge0) / (edge1 - edge0), 0, 1);
   return t * t * (3 - 2 * t);
-}
-
-interface BuildSceneProps {
-  progressRef: MutableRefObject<number>;
 }
 
 interface SolidEntry {
@@ -60,22 +57,21 @@ interface GlassEntry {
 }
 
 /**
- * Renders its own clone of the house (independent materials from the Hero
- * instance) with:
- *  - a horizontal clipping plane that sweeps bottom-to-top, driven by scroll
- *    progress from the parent's GSAP ScrollTrigger (read via progressRef so this
- *    updates every rendered frame without extra React state/re-renders)
+ * The hero's house, building itself from the ground up when it mounts:
+ *  - a horizontal clipping plane that sweeps bottom-to-top over BUILD_SECONDS
+ *    (skipped straight to the finished house under reduced motion)
  *  - blueprint edge lines -> clay shell -> the model's real textures, blended
  *    in the shader via one shared uniform
  *  - the cut itself glowing: solids are double-sided, and back faces seen
  *    through the clip opening are painted a hot orange, so the "construction
  *    line" hugs exactly the walls being cut instead of a floating plane
  */
-export function BuildScene({ progressRef }: BuildSceneProps) {
+export function BuildScene() {
   const gltf = useHouseLoader((s) => s.gltf);
-  const { camera, scene: threeScene, gl, size } = useThree();
+  const { camera, gl, size } = useThree();
+  const reducedMotion = useReducedMotion();
 
-  const bgColorRef = useRef(new THREE.Color());
+  const startRef = useRef<number | null>(null);
   const glowLightRef = useRef<THREE.PointLight>(null);
   const keyLightRef = useRef<THREE.DirectionalLight>(null);
 
@@ -176,25 +172,25 @@ export function BuildScene({ progressRef }: BuildSceneProps) {
   }, [gl]);
 
   // Re-fit to the canvas's real aspect so a narrow/portrait viewport doesn't
-  // crop the house. Aim a little above centre so the house sits below the
-  // section heading overlaid at the top.
+  // crop the house. The fit is sphere-based, which already leaves slack around
+  // a box-shaped house at any orbit angle, so only a small margin is added.
   const framing = useMemo(() => {
     if (!built) return null;
-    const f = computeFraming(built.box, 38, 1.08, size.width / size.height);
-    const target = f.center.clone();
-    target.y += f.radius * 0.06;
-    return { target, distance: f.distance, radius: f.radius };
+    const f = computeFraming(built.box, 32, 1.02, size.width / size.height);
+    return { target: f.center.clone(), distance: f.distance, radius: f.radius };
   }, [built, size.width, size.height]);
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     if (!built || !framing) return;
-    const t = progressRef.current;
+    if (startRef.current === null) startRef.current = clock.elapsedTime + START_DELAY;
+    const elapsed = clock.elapsedTime - startRef.current;
+    const t = reducedMotion ? 1 : THREE.MathUtils.clamp(elapsed / BUILD_SECONDS, 0, 1);
     const { box, center } = built;
     const height = box.max.y - box.min.y || 1;
     const margin = height * 0.02;
 
-    // Camera: slow orbit tied to scroll.
-    const az = BASE_AZIMUTH + (t - 0.5) * ORBIT_SWING;
+    // Camera: slow continuous orbit (still under reduced motion).
+    const az = BASE_AZIMUTH + (reducedMotion ? 0 : Math.max(0, elapsed) * ORBIT_SPEED);
     const d = framing.distance;
     camera.position.set(
       framing.target.x + d * Math.sin(az) * Math.cos(ELEVATION),
@@ -215,9 +211,7 @@ export function BuildScene({ progressRef }: BuildSceneProps) {
 
     // Clip plane sweep.
     const sweep = smoothstep(SWEEP_START, SWEEP_END, t);
-    // Start a little way up so the site base is already there when the
-    // section pins, instead of an empty frame.
-    const planeY = THREE.MathUtils.lerp(box.min.y + height * 0.1, box.max.y + margin, sweep);
+    const planeY = THREE.MathUtils.lerp(box.min.y, box.max.y + margin, sweep);
     built.plane.constant = planeY;
 
     // Clay shell fades in behind the blueprint lines, then the real
@@ -246,9 +240,6 @@ export function BuildScene({ progressRef }: BuildSceneProps) {
     const cutAmt = smoothstep(SWEEP_START, SWEEP_START + 0.05, t) * (1 - smoothstep(SWEEP_END - 0.06, SWEEP_END, t));
     built.uniforms.uCutAmt.value = cutAmt;
 
-    bgColorRef.current.lerpColors(BG_BLUEPRINT, BG_SITE, smoothstep(0, 0.5, t));
-    threeScene.background = bgColorRef.current;
-
     if (glowLightRef.current) {
       glowLightRef.current.position.set(center.x, THREE.MathUtils.clamp(planeY, box.min.y, box.max.y) + height * 0.05, center.z);
       glowLightRef.current.intensity = cutAmt * 6;
@@ -259,8 +250,8 @@ export function BuildScene({ progressRef }: BuildSceneProps) {
 
   return (
     <>
-      {/* Same lighting recipe as the hero, so the finished house here reads
-          with the same saturated colours rather than a flat grey. */}
+      {/* Strong shadowed key light + moderate fill/IBL, so the finished house
+          reads with saturated colours rather than a flat, washed-out grey. */}
       <ambientLight intensity={0.15} />
       <hemisphereLight args={["#fff4e6", "#3a3530", 0.45]} />
       <directionalLight

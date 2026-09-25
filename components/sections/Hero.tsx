@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Canvas } from "@react-three/fiber";
 import { PerformanceMonitor, AdaptiveDpr } from "@react-three/drei";
-import { HeroScene } from "@/components/canvas/HeroScene";
+import { BuildScene } from "@/components/canvas/BuildScene";
 import { useLightExperience } from "@/lib/hooks/use-light-experience";
 import { useIsMobile } from "@/lib/hooks/use-is-mobile";
 import { useInView } from "@/lib/hooks/use-in-view";
@@ -35,7 +35,7 @@ export function Hero({ project }: { project: Project }) {
     <section ref={inViewRef} className="relative h-[100svh] w-full overflow-hidden bg-background">
       {/* Model: full-bleed background on mobile/tablet, confined to the right
           half on desktop so it doesn't compete with the text for space -
-          HeroScene re-fits its camera to whatever width this ends up with
+          BuildScene re-fits its camera to whatever width this ends up with
           (see computeFraming's aspect param). */}
       <div className="absolute inset-0 lg:left-[38%] lg:right-0">
         {!lightExperience ? (
@@ -49,11 +49,11 @@ export function Hero({ project }: { project: Project }) {
                 dpr={[1, isMobile ? 1.5 : 2]}
                 shadows
                 camera={{ fov: 32, position: [10, 6, 10] }}
-                gl={{ antialias: true, toneMappingExposure: 1.05 }}
+                gl={{ antialias: true, localClippingEnabled: true, toneMappingExposure: 1.05 }}
               >
                 <PerformanceMonitor>
                   <AdaptiveDpr pixelated={false} />
-                  <HeroScene />
+                  <BuildScene />
                 </PerformanceMonitor>
               </Canvas>
             )}
